@@ -26,6 +26,7 @@ var save_data: Dictionary = {
 		"p3_boa_t1_chaos": true,
 		"p3_boa_strat": 0,
 		"p3_boa_start_point": 0,
+		"p3_eq_strat": 0,   # 0 = KB, 1 = OnlyYans
 		#"p4_ct_aero_plant": false,
 	},
 	## FRU Waymarks

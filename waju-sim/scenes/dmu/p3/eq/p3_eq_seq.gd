@@ -12,7 +12,7 @@ extends Node
 const BIG_KEFKA_UID := "uid://ddmbbusmjpmqg"
 const BLACK_HOLE_SET_UID := "uid://ddu02jcnuf02w"
 
-enum Strat {KB}
+enum Strat {KB, ONLYYANS}
 enum StartPoint {DB1, BOA, LC, DB2, EQ, STOMP}
 
 ## AoE Dimensions
@@ -151,6 +151,28 @@ var tether_targets_kb := {
 		2: {1: "til_sup"}
 	}
 }
+# OnlyYans: fixed-cardinal pickup. N(0)=sup, E(1)=dps, S(2)=accretion, flex W if absent.
+# Waves map to the same 4 spawns as KB: set1=(1,2 tethers), set2/3=(3,3,3), set4=(2,1).
+var tether_targets_onlyyans := {
+	1: {
+		1: {1: "fil_dps"},                                   # Set 1 (1): fil_dps
+		2: {1: "fil_sup", 2: "fil_sup"}                      # Set 2 (2): fil_sup grabs both
+	},
+	2: {
+		1: {1: "fil_sup", 2: "fil_dps", 3: "fil_acr"},       # Set 3: N sup, E dps, S acr
+		2: {1: "sil_sup", 2: "fil_dps", 3: "fil_acr"},       # Set 4
+		3: {1: "sil_sup", 2: "sil_dps", 3: "fil_acr"}        # Set 5
+	},
+	3: {
+		1: {1: "sil_sup", 2: "sil_dps", 3: "sil_acr"},       # Set 6
+		2: {1: "til_sup", 2: "sil_dps", 3: "sil_acr"},       # Set 7
+		3: {1: "til_sup", 2: "til_dps", 3: "sil_acr"}        # Set 8
+	},
+	4: {
+		1: {1: "til_dps", 2: "til_dps"},                     # Set 9 (2): til_dps grabs both
+		2: {1: "til_sup"}                                    # Set 10 (1): til_sup
+	}
+}
 var strat: Strat
 var arena_rotation_deg: float
 var player_key: String
@@ -188,7 +210,7 @@ func start_sequence(new_party: Dictionary) -> void:
 	tether_controller.preload_resources(true)
 	player_key = Global.player_role_key
 	## Get Strat and variables.
-	#strat = DmuSavedVariables.save_data["settings"]["p3_eq_strat"]
+	strat = DmuSavedVariables.get_data_and_check_int("settings", "p3_eq_strat", 0, Strat.size()) as Strat
 	starting_point = DmuSavedVariables.get_data_and_check_int("settings", "p3_boa_start_point", 0, StartPoint.size()) as StartPoint
 	t1_chaos = DmuSavedVariables.get_data_and_check_bool("settings", "p3_boa_t1_chaos")
 	instantiate_party(new_party)
@@ -489,9 +511,9 @@ func move_bh_pre_pos(tether_set_num: int):
 		else:
 			active_tethers = active_tethers.slice(2, 3)
 	# Order tether by Kefka relative prio
-	order_tether_prio_kb(active_tethers)
-	for tether_num in tether_targets_kb[bh_set_number][tether_set_num]:
-		var pc: PlayableCharacter = party[party_keys_eq[tether_targets_kb[bh_set_number][tether_set_num][tether_num]]]
+	order_tether_prio(active_tethers)
+	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
+		var pc: PlayableCharacter = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
 		pc.move_to(EqPos.BH_PRE_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
 
 
@@ -509,9 +531,9 @@ func move_bh_bait_pos(tether_set_num: int):
 		else:
 			active_tethers = active_tethers.slice(2, 3)
 	# Order tether by Kefka relative prio
-	order_tether_prio_kb(active_tethers)
-	for tether_num in tether_targets_kb[bh_set_number][tether_set_num]:
-		var pc: PlayableCharacter = party[party_keys_eq[tether_targets_kb[bh_set_number][tether_set_num][tether_num]]]
+	order_tether_prio(active_tethers)
+	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
+		var pc: PlayableCharacter = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
 		pc.move_to(EqPos.BH_BAIT_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
 
 
@@ -530,13 +552,13 @@ func force_tether_target(tether_set_num: int):
 		else:
 			active_tethers = active_tethers.slice(2, 3)
 	# Order tether by Kefka relative prio
-	order_tether_prio_kb(active_tethers)
-	for tether_num in tether_targets_kb[bh_set_number][tether_set_num]:
+	order_tether_prio(active_tethers)
+	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
 		var bh_source = bh_set.get_bh_node(active_tethers[tether_num - 1])
 		var tar = tether_controller.get_tether_target(bh_source)
 		if tar.is_player() and !Global.spectate_mode:
 			return
-		var new_tar = party[party_keys_eq[tether_targets_kb[bh_set_number][tether_set_num][tether_num]]]
+		var new_tar = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
 		tether_controller.set_tether_target(bh_source, new_tar)
 
 
@@ -548,7 +570,22 @@ func order_tether_prio_kb(active_tethers: Array):
 	for key_arr in tether_prio_kb:
 		if key_arr.has(rota_factor):
 			ordered_tethers = tether_prio_kb[key_arr]
-	order_lr_prio(ordered_tethers, active_tethers)
+	order_lr_prio(ordered_tethers, active_tethers)	
+
+# Returns the active targets table for the current strat.
+func get_tether_targets() -> Dictionary:
+	if strat == Strat.ONLYYANS:
+		return tether_targets_onlyyans
+	return tether_targets_kb
+
+# Orders active_tethers for the current strat.
+# KB = Kefka-relative rotation. OnlyYans = fixed cardinal (N,E,S = 0,1,2),
+# which is the natural node order, so we sort ascending by direction index.
+func order_tether_prio(active_tethers: Array):
+	if strat == Strat.ONLYYANS:
+		active_tethers.sort()   # ascending: N(0) -> E(1) -> S(2); flex/West falls out via slicing
+	else:
+		order_tether_prio_kb(active_tethers)
 
 # 44.2 show tether 2/3
 ## spawn_tether(2):
