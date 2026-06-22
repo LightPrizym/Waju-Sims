@@ -499,87 +499,127 @@ func despawn_tether(tether_num: int):
 
 func move_bh_pre_pos(tether_set_num: int):
 	var active_tethers = bh_tether_order.duplicate()
-	# Narrow down which tethers are active
 	if bh_set_number == 1:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 1)
-		else:
-			active_tethers = active_tethers.slice(1, 3)
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 1)
+		else: active_tethers = active_tethers.slice(1, 3)
 	elif bh_set_number == 4:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 2)
-		else:
-			active_tethers = active_tethers.slice(2, 3)
-	# Order tether by Kefka relative prio
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 2)
+		else: active_tethers = active_tethers.slice(2, 3)
+
+	if strat == Strat.ONLYYANS:
+		var targets = get_tether_targets()[bh_set_number][tether_set_num]
+		var soaker_keys := []
+		for tn in targets:
+			if not soaker_keys.has(targets[tn]):
+				soaker_keys.append(targets[tn])
+		var assignment := oy_assign_nodes(active_tethers, soaker_keys)
+		for skey in assignment:
+			var pc: PlayableCharacter = party[party_keys_eq[skey]]
+			# World-absolute grab position: the tether node's own world position.
+			var world_pos: Vector2 = EqPos.BH_PRE_POS[assignment[skey]].rotated(deg_to_rad(-arena_rotation_deg))
+			pc.move_to(world_pos)
+		return
+
+	# KB unchanged.
 	order_tether_prio(active_tethers)
-	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
-		var pc: PlayableCharacter = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
+	var targets_kb = get_tether_targets()[bh_set_number][tether_set_num]
+	for tether_num in targets_kb:
+		var pc: PlayableCharacter = party[party_keys_eq[targets_kb[tether_num]]]
 		pc.move_to(EqPos.BH_PRE_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
 
 
 func move_bh_bait_pos(tether_set_num: int):
 	var active_tethers = bh_tether_order.duplicate()
-	# Narrow down which tethers are active
 	if bh_set_number == 1:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 1)
-		else:
-			active_tethers = active_tethers.slice(1, 3)
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 1)
+		else: active_tethers = active_tethers.slice(1, 3)
 	elif bh_set_number == 4:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 2)
-		else:
-			active_tethers = active_tethers.slice(2, 3)
-	# Order tether for current strat.
-	order_tether_prio(active_tethers)
-	var targets = get_tether_targets()[bh_set_number][tether_set_num]
-	if strat == Strat.ONLYYANS:
-		# Detect double-tether wave: one unique soaker assigned to 2+ tethers.
-		var unique_soakers := {}
-		for tn in targets:
-			unique_soakers[targets[tn]] = true
-		if targets.size() >= 2 and unique_soakers.size() == 1:
-			# Double: single soaker baits the intercard between the active cardinals.
-			var soaker_key = targets[targets.keys()[0]]
-			var pc: PlayableCharacter = party[party_keys_eq[soaker_key]]
-			pc.move_to(oy_double_intercard(active_tethers).rotated(deg_to_rad(arena_rotation_deg)))
-		else:
-			# Singles: each soaker baits the intercard CW of their tether's cardinal.
-			for tether_num in targets:
-				var pc: PlayableCharacter = party[party_keys_eq[targets[tether_num]]]
-				var dir = active_tethers[tether_num - 1]
-				pc.move_to(oy_single_intercard(dir).rotated(deg_to_rad(arena_rotation_deg)))
-	else:
-		# KB unchanged.
-		for tether_num in targets:
-			var pc: PlayableCharacter = party[party_keys_eq[targets[tether_num]]]
-			pc.move_to(EqPos.BH_BAIT_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 2)
+		else: active_tethers = active_tethers.slice(2, 3)
 
+	if strat == Strat.ONLYYANS:
+		var targets = get_tether_targets()[bh_set_number][tether_set_num]
+		var soaker_keys := []
+		for tn in targets:
+			if not soaker_keys.has(targets[tn]):
+				soaker_keys.append(targets[tn])
+		# Double-tether wave: one soaker, two active tethers -> between-intercard.
+		if soaker_keys.size() == 1 and active_tethers.size() == 2:
+			var c1 := oy_node_world_cardinal(active_tethers[0])
+			var c2 := oy_node_world_cardinal(active_tethers[1])
+			var pc: PlayableCharacter = party[party_keys_eq[soaker_keys[0]]]
+			pc.move_to(oy_between_intercard(c1, c2))
+			return
+		# Single or triple: each soaker baits CW intercard of THEIR assigned tether's world cardinal.
+		var assignment := oy_assign_nodes(active_tethers, soaker_keys)
+		for skey in assignment:
+			var pc: PlayableCharacter = party[party_keys_eq[skey]]
+			var wcard := oy_node_world_cardinal(assignment[skey])
+			pc.move_to(EqPos.OY_INTERCARD[OY_CW_INTERCARD[wcard]])
+		return
+
+	# KB unchanged.
+	order_tether_prio(active_tethers)
+	var targets_kb = get_tether_targets()[bh_set_number][tether_set_num]
+	for tether_num in targets_kb:
+		var pc: PlayableCharacter = party[party_keys_eq[targets_kb[tether_num]]]
+		pc.move_to(EqPos.BH_BAIT_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
+
+# Between-intercard for two adjacent world cardinals (double-tether bait).
+func oy_between_intercard(c1: String, c2: String) -> Vector2:
+	var pair := [c1, c2]
+	pair.sort()
+	if pair == ["E", "N"]: return EqPos.OY_INTERCARD["ne"]
+	if pair == ["E", "S"]: return EqPos.OY_INTERCARD["se"]
+	if pair == ["S", "W"]: return EqPos.OY_INTERCARD["sw"]
+	if pair == ["N", "W"]: return EqPos.OY_INTERCARD["nw"]
+	# Fallback: average the two CW intercards.
+	return (EqPos.OY_INTERCARD[OY_CW_INTERCARD[c1]] + EqPos.OY_INTERCARD[OY_CW_INTERCARD[c2]]) * 0.5
 
 # 41.0 Force tether onto bot targets
 func force_tether_target(tether_set_num: int):
 	var active_tethers = bh_tether_order.duplicate()
-	# Narrow down which tethers are active
 	if bh_set_number == 1:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 1)
-		else:
-			active_tethers = active_tethers.slice(1, 3)
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 1)
+		else: active_tethers = active_tethers.slice(1, 3)
 	elif bh_set_number == 4:
-		if tether_set_num == 1:
-			active_tethers = active_tethers.slice(0, 2)
-		else:
-			active_tethers = active_tethers.slice(2, 3)
-	# Order tether by Kefka relative prio
+		if tether_set_num == 1: active_tethers = active_tethers.slice(0, 2)
+		else: active_tethers = active_tethers.slice(2, 3)
+
+	if strat == Strat.ONLYYANS:
+		var targets = get_tether_targets()[bh_set_number][tether_set_num]
+		var soaker_keys := []
+		for tn in targets:
+			if not soaker_keys.has(targets[tn]):
+				soaker_keys.append(targets[tn])
+		var assignment := oy_assign_nodes(active_tethers, soaker_keys)
+		# Double wave: one soaker forced onto BOTH active tethers.
+		if soaker_keys.size() == 1 and active_tethers.size() >= 2:
+			for idx in active_tethers:
+				var bh_source = bh_set.get_bh_node(idx)
+				var tar = tether_controller.get_tether_target(bh_source)
+				if tar.is_player() and !Global.spectate_mode:
+					continue
+				tether_controller.set_tether_target(bh_source, party[party_keys_eq[soaker_keys[0]]])
+			return
+		for skey in assignment:
+			var bh_source = bh_set.get_bh_node(assignment[skey])
+			var tar = tether_controller.get_tether_target(bh_source)
+			if tar.is_player() and !Global.spectate_mode:
+				continue
+			tether_controller.set_tether_target(bh_source, party[party_keys_eq[skey]])
+		return
+
+	# KB unchanged.
 	order_tether_prio(active_tethers)
-	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
+	var targets_kb = get_tether_targets()[bh_set_number][tether_set_num]
+	for tether_num in targets_kb:
 		var bh_source = bh_set.get_bh_node(active_tethers[tether_num - 1])
 		var tar = tether_controller.get_tether_target(bh_source)
 		if tar.is_player() and !Global.spectate_mode:
 			return
-		var new_tar = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
+		var new_tar = party[party_keys_eq[targets_kb[tether_num]]]
 		tether_controller.set_tether_target(bh_source, new_tar)
-
 
 # Orders array of direction index clockwise from Kefka using tether_prio dictionary.
 func order_tether_prio_kb(active_tethers: Array):
@@ -626,6 +666,78 @@ func oy_double_intercard(dirs: Array) -> Vector2:
 	if s == [0, 3]: return EqPos.OY_INTERCARD["nw"]   # W+N (wraps)
 	# Fallback (shouldn't hit with adjacent-only): average the two singles.
 	return (oy_single_intercard(s[0]) + oy_single_intercard(s[1])) * 0.5
+
+# --- OnlyYans world-cardinal resolution ---
+
+# Set-local node index -> its TRUE WORLD cardinal, given arena rotation.
+# The set is rotated by -arena_rotation_deg, so node world pos = local.rotated(-arena).
+# Returns "N"/"E"/"S"/"W".
+func oy_node_world_cardinal(local_index: int) -> String:
+	var local_pos: Vector2 = EqPos.BH_PRE_POS[local_index]
+	var world_pos: Vector2 = local_pos.rotated(deg_to_rad(-arena_rotation_deg))
+	return oy_classify_cardinal(world_pos)
+
+func oy_classify_cardinal(v: Vector2) -> String:
+	# N=(0,-), E=(+,0), S=(0,+), W=(-,0). Pick nearest by dot product.
+	var n := v.normalized()
+	var best := "N"
+	var best_dot := -2.0
+	var cards := {"N": Vector2(0,-1), "E": Vector2(1,0), "S": Vector2(0,1), "W": Vector2(-1,0)}
+	for name in cards:
+		var d: float = n.dot(cards[name])
+		if d > best_dot:
+			best_dot = d
+			best = name
+	return best
+
+# Each role's preferred world cardinal.
+const OY_PREF := {"sup": "N", "dps": "E", "acr": "S"}
+
+# CW intercard of a world cardinal (single soaker baits CW of their tether's cardinal).
+const OY_CW_INTERCARD := {"N": "ne", "E": "se", "S": "sw", "W": "nw"}
+
+# Map a role-key (e.g. "fil_sup") to its preference group.
+func oy_role_group(soaker_key: String) -> String:
+	if soaker_key.contains("sup"): return "sup"
+	if soaker_key.contains("dps"): return "dps"
+	if soaker_key.contains("acr"): return "acr"
+	return "dps"
+
+# Assigns each active soaker (by table) to a set-local node index, by WORLD cardinal.
+# Exact-cardinal matches first; the displaced soaker flexes to the leftover node.
+# Returns { soaker_key: local_node_index }.
+func oy_assign_nodes(active_local: Array, soaker_keys: Array) -> Dictionary:
+	var node_world := {}
+	for idx in active_local:
+		node_world[idx] = oy_node_world_cardinal(idx)
+	var assignment := {}
+	var used := {}
+	# Pass 1: exact world-cardinal matches.
+	for skey in soaker_keys:
+		var want: String = OY_PREF[oy_role_group(skey)]
+		for idx in active_local:
+			if node_world[idx] == want and not used.has(idx):
+				assignment[skey] = idx
+				used[idx] = true
+				break
+	# Pass 2: flex remaining soakers to remaining nodes.
+	var leftover_nodes := []
+	for idx in active_local:
+		if not used.has(idx):
+			leftover_nodes.append(idx)
+	var li := 0
+	for skey in soaker_keys:
+		if not assignment.has(skey):
+			assignment[skey] = leftover_nodes[li]
+			li += 1
+	return assignment
+
+# Extract the role-category ("sup"/"dps"/"acr") from a soaker key like "fil_sup".
+func oy_cat(role_key: String) -> String:
+	if role_key.ends_with("_sup"): return "sup"
+	if role_key.ends_with("_dps"): return "dps"
+	if role_key.ends_with("_acr"): return "acr"
+	return ""
 
 # 44.2 show tether 2/3
 ## spawn_tether(2):
