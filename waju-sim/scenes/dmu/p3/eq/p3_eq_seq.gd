@@ -516,7 +516,7 @@ func move_bh_pre_pos(tether_set_num: int):
 		for skey in assignment:
 			var pc: PlayableCharacter = party[party_keys_eq[skey]]
 			# World-absolute grab position: the tether node's own world position.
-			var world_pos: Vector2 = EqPos.BH_PRE_POS[assignment[skey]].rotated(deg_to_rad(-arena_rotation_deg))
+			var world_pos: Vector2 = EqPos.BH_PRE_POS[assignment[skey]].rotated(deg_to_rad(arena_rotation_deg))
 			pc.move_to(world_pos)
 		return
 
@@ -674,7 +674,7 @@ func oy_double_intercard(dirs: Array) -> Vector2:
 # Returns "N"/"E"/"S"/"W".
 func oy_node_world_cardinal(local_index: int) -> String:
 	var local_pos: Vector2 = EqPos.BH_PRE_POS[local_index]
-	var world_pos: Vector2 = local_pos.rotated(deg_to_rad(-arena_rotation_deg))
+	var world_pos: Vector2 = local_pos.rotated(deg_to_rad(arena_rotation_deg))
 	return oy_classify_cardinal(world_pos)
 
 func oy_classify_cardinal(v: Vector2) -> String:
