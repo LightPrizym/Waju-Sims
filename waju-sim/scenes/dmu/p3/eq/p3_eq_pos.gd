@@ -59,6 +59,15 @@ const BH_PRE_POS := {0: Vector2(0, -16), 1: Vector2(16, 0), 2: Vector2(0, 16)}
 
 const BH_BAIT_POS := {0: Vector2(14, -10), 1: Vector2(10, 14), 2: Vector2(-14, 10)}
 
+# OnlyYans bait spots. Max melee (radius 16) on the intercards.
+# Keyed by intercard name.
+const OY_INTERCARD := {
+	"ne": Vector2(14.8, -14.8),
+	"se": Vector2(14.8, 14.8),
+	"sw": Vector2(-14.8, 14.8),
+	"nw": Vector2(-14.8, -14.8),
+}
+
 # NE
 const LAT_RIGHT_POS := {
 	"t1": Vector2(16, -8.5) + RS1, "t2": Vector2(16, -8.5) + RS2, "h1": Vector2(16, -8.5) + RS3, "h2": Vector2(16, -8.5),

@@ -211,6 +211,7 @@ func start_sequence(new_party: Dictionary) -> void:
 	player_key = Global.player_role_key
 	## Get Strat and variables.
 	strat = DmuSavedVariables.get_data_and_check_int("settings", "p3_eq_strat", 0, Strat.size()) as Strat
+	strat = Strat.ONLYYANS
 	starting_point = DmuSavedVariables.get_data_and_check_int("settings", "p3_boa_start_point", 0, StartPoint.size()) as StartPoint
 	t1_chaos = DmuSavedVariables.get_data_and_check_bool("settings", "p3_boa_t1_chaos")
 	instantiate_party(new_party)
@@ -530,11 +531,30 @@ func move_bh_bait_pos(tether_set_num: int):
 			active_tethers = active_tethers.slice(0, 2)
 		else:
 			active_tethers = active_tethers.slice(2, 3)
-	# Order tether by Kefka relative prio
+	# Order tether for current strat.
 	order_tether_prio(active_tethers)
-	for tether_num in get_tether_targets()[bh_set_number][tether_set_num]:
-		var pc: PlayableCharacter = party[party_keys_eq[get_tether_targets()[bh_set_number][tether_set_num][tether_num]]]
-		pc.move_to(EqPos.BH_BAIT_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
+	var targets = get_tether_targets()[bh_set_number][tether_set_num]
+	if strat == Strat.ONLYYANS:
+		# Detect double-tether wave: one unique soaker assigned to 2+ tethers.
+		var unique_soakers := {}
+		for tn in targets:
+			unique_soakers[targets[tn]] = true
+		if targets.size() >= 2 and unique_soakers.size() == 1:
+			# Double: single soaker baits the intercard between the active cardinals.
+			var soaker_key = targets[targets.keys()[0]]
+			var pc: PlayableCharacter = party[party_keys_eq[soaker_key]]
+			pc.move_to(oy_double_intercard(active_tethers).rotated(deg_to_rad(arena_rotation_deg)))
+		else:
+			# Singles: each soaker baits the intercard CW of their tether's cardinal.
+			for tether_num in targets:
+				var pc: PlayableCharacter = party[party_keys_eq[targets[tether_num]]]
+				var dir = active_tethers[tether_num - 1]
+				pc.move_to(oy_single_intercard(dir).rotated(deg_to_rad(arena_rotation_deg)))
+	else:
+		# KB unchanged.
+		for tether_num in targets:
+			var pc: PlayableCharacter = party[party_keys_eq[targets[tether_num]]]
+			pc.move_to(EqPos.BH_BAIT_POS[active_tethers[tether_num - 1]].rotated(deg_to_rad(arena_rotation_deg)))
 
 
 # 41.0 Force tether onto bot targets
@@ -587,6 +607,27 @@ func order_tether_prio(active_tethers: Array):
 	else:
 		order_tether_prio_kb(active_tethers)
 
+# Single tether: intercard CLOCKWISE of the spawned cardinal.
+# dir index: 0=N ->ne, 1=E ->se, 2=S ->sw, 3=W ->nw
+func oy_single_intercard(dir: int) -> Vector2:
+	match dir:
+		0: return EqPos.OY_INTERCARD["ne"]
+		1: return EqPos.OY_INTERCARD["se"]
+		2: return EqPos.OY_INTERCARD["sw"]
+		_: return EqPos.OY_INTERCARD["nw"]   # 3 = W flex
+
+# Double tether: intercard BETWEEN two adjacent cardinals.
+func oy_double_intercard(dirs: Array) -> Vector2:
+	var s := dirs.duplicate()
+	s.sort()
+	# Adjacent pairs only (per strat). Map the sorted pair to its between-intercard.
+	if s == [0, 1]: return EqPos.OY_INTERCARD["ne"]   # N+E
+	if s == [1, 2]: return EqPos.OY_INTERCARD["se"]   # E+S
+	if s == [2, 3]: return EqPos.OY_INTERCARD["sw"]   # S+W
+	if s == [0, 3]: return EqPos.OY_INTERCARD["nw"]   # W+N (wraps)
+	# Fallback (shouldn't hit with adjacent-only): average the two singles.
+	return (oy_single_intercard(s[0]) + oy_single_intercard(s[1])) * 0.5
+
 # 44.2 show tether 2/3
 ## spawn_tether(2):
 ## spawn_tether(3):
@@ -616,6 +657,10 @@ func tether_hit(tether_num: int):
 
 # Need to position Exdeath here. If T2 is a tether, that movement should override this. 
 func move_thunder_2_pre_pos():
+	if strat == Strat.ONLYYANS:
+		# Pulled ~3 units toward center along the same radial, clear of the BH laser line.
+		exdeath_tank.move_to(Vector2(-6.7, -16.4).rotated(deg_to_rad(arena_rotation_deg)))
+		return
 	exdeath_tank.move_to(Vector2(-9, -22).rotated(deg_to_rad(arena_rotation_deg)))
 
 # 49.6 Cast Thunder III (4.7s)
@@ -643,6 +688,9 @@ func move_thunder_2_pos_1():
 
 
 func move_thunder_2_pos_2():
+	if strat == Strat.ONLYYANS:
+		# No swap: exdeath_tank (OT) holds under Exdeath and soaks hit 2 as well.
+		return
 	exdeath_tank.move_to(Vector2.ZERO)
 	chaos_tank.move_to(v2(exdeath.global_position) + (v2(exdeath.global_position).normalized() * 2.0))
 
