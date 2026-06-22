@@ -210,8 +210,7 @@ func start_sequence(new_party: Dictionary) -> void:
 	tether_controller.preload_resources(true)
 	player_key = Global.player_role_key
 	## Get Strat and variables.
-	strat = DmuSavedVariables.get_data_and_check_int("settings", "p3_eq_strat", 0, Strat.size()) as Strat
-	strat = Strat.ONLYYANS
+	strat = DmuSavedVariables.get_data_and_check_int("settings", "p3_eq_strat", 1, Strat.size()) as Strat
 	starting_point = DmuSavedVariables.get_data_and_check_int("settings", "p3_boa_start_point", 0, StartPoint.size()) as StartPoint
 	t1_chaos = DmuSavedVariables.get_data_and_check_bool("settings", "p3_boa_t1_chaos")
 	instantiate_party(new_party)
